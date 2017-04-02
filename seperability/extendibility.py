@@ -39,40 +39,7 @@ def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k):
             index -= 1
     
     return σ_AB_i
-    # dim = [dim_A]
-    # dim.extend([dim_B for i in range(k)])
-    # if σ_AB.size==(dim_A*dim_B,dim_A*dim_B):
-    #     return σ_AB
-    # else:
-    #     if trace_below and i>1:
-    #         return get_σ_AB_i_picos( picos.partial_trace(σ_AB, i, dim), dim_A, dim_B, i-1, k-1)
-    #     elif i==1:
-    #         return get_σ_AB_i_picos( picos.partial_trace(σ_AB ,i+1, dim), dim_A, dim_B, i+1, k-1, trace_below=False)
-    #     elif trace_below==False:
-    #         return get_σ_AB_i_picos( picos.partial_trace(σ_AB, i, dim), dim_A, dim_B, i, k-1, trace_below=False)
-
-# def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k):
-#     '''
-#     Get the i'th extension of σ_AB
-#     --------------------------------------------------------------
-#     Given a σ_AB_1...B_k ∈ 𝓗_A ⊗ 𝓗_B^(⊗k) calculate 
-#     σ_AB_1 = tr_B1..B_(i-1)B_(i+1)...B_k(σ_AB_1...B_k)
-
-#     This is done by noting that 
-#     tr_B1..B_(i-1)B_(i+1)...B_k(σ_AB_1...B_k) 
-#     = sum_(\vec{j}) (<j_0| ⊗ ... ⊗ <j_(i-1)| ⊗ id ⊗ <j_(i+1)| ⊗ ...⊗ <j_k|) σ_AB_1...B_k (|j_0> ⊗ ... ⊗ |j_(i-1)> ⊗ id ⊗ |j_(i+1)> ⊗ ...⊗ |j_k>)
-#                     {----------------------------M_j---------------------------}              {----------------------------M_j^T-------------------------}
-    
-#     = sum_(\vec{j}) M_j · σ_AB ·M_j^T 
-#     '''
-
-    #Construct the M matrix defined in the docstring
-    # M = np.zeros((dim_A*dim_B), dim_A*dim_B**k)
-    # for i in dim_B:
-
-    # σ_AB_block = np.asarray(σ_AB.value).reshape(dim_A*dim_B**k).transpose()
-    # indecies = [i*2 for i in range(k-1)]
-    # indecies.append([i*2 for i in range(k+1)])
+ 
 def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k):
     '''
     Check if σ_AB is an extension, by checking constraints
