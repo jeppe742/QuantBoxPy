@@ -6,15 +6,19 @@ import numpy as np
 #                 [2,5+3j,4],
 #                 [3+8j,4,9-1j]])
 
+# k = cvx.matrix([[1+1j,2,3,1j],
+#                 [2,5+3j,4,8],
+#                 [3+8j,4,9-1j,-6j],
+#                 [1,2,3,4]])
+# k = cvx.matrix([[1,2,3,1],
+#                 [2,5,4,8],
+#                 [3,4,9,-6],
+#                 [1,2,3,4]])
+
 k = cvx.matrix([[1,2,3,1],
                 [2,5,4,8],
                 [3,4,9,1],
                 [1,2,3,4]])
-
-
-# K = cvx.matrix([[1,2,3],
-#                 [4,5,6],
-#                 [7,8,9]])
 
 P = pic.Problem()
 
@@ -29,7 +33,7 @@ P.add_constraint(Y>>0)
 # P.add_constraint(X.real>0)
 # P.add_constraint(Y.real>0)
 print(P)
-P.set_option('handleBarVars',False)    
+
 P.solve(verbose=1, solver='mosek')
 print('SDP status: '+P.status)
 print('\nSDP value = {:.3f}'.format(P.obj_value()))
