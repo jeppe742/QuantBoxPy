@@ -1,7 +1,78 @@
 import picos
 import cvxopt as cvx
+import numpy as np
 
+def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k):
+    '''
+    Get the i'th extension of σ_AB
+    --------------------------------------------------------------
+    Given a σ_AB_1...B_k ∈ 𝓗_A ⊗ 𝓗_B^(⊗k) calculate 
+    σ_AB_i = tr_B1..B_(i-1)B_(i+1)...B_k(σ_AB_1...B_k)
 
+    :param σ_AB: input state including all extensions
+    :param dim_A: dimensions of system σ_A
+    :param dim_B: dimsenions of system σ_B
+    :param i: The system for which we want the reduced density matrix
+    :param k: number of extensions we have
+    '''
+    #Create a list of the dimensions of our system
+    dim = [dim_A]
+    dim.extend([dim_B for i in range(k)]) # Dimensions of our system
+
+    index = i #This is used to keep track of which system not to trace out
+
+    #Calculate first trace
+    if index==1:
+        σ_AB_i = picos.partial_trace(σ_AB, index+1, dim )
+    else:
+        σ_AB_i = picos.partial_trace(σ_AB, index-1, dim )
+        index -= 1
+
+    #Loop over the rest of the traces
+    for j in range(k-2):
+        dim = [dim_A]
+        dim.extend([dim_B for i in range(k-1-j)])
+        if index==1:
+            σ_AB_i = picos.partial_trace(σ_AB_i, index+1, dim )
+        else:
+            σ_AB_i = picos.partial_trace(σ_AB_i, index-1, dim )
+            index -= 1
+    
+    return σ_AB_i
+    # dim = [dim_A]
+    # dim.extend([dim_B for i in range(k)])
+    # if σ_AB.size==(dim_A*dim_B,dim_A*dim_B):
+    #     return σ_AB
+    # else:
+    #     if trace_below and i>1:
+    #         return get_σ_AB_i_picos( picos.partial_trace(σ_AB, i, dim), dim_A, dim_B, i-1, k-1)
+    #     elif i==1:
+    #         return get_σ_AB_i_picos( picos.partial_trace(σ_AB ,i+1, dim), dim_A, dim_B, i+1, k-1, trace_below=False)
+    #     elif trace_below==False:
+    #         return get_σ_AB_i_picos( picos.partial_trace(σ_AB, i, dim), dim_A, dim_B, i, k-1, trace_below=False)
+
+# def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k):
+#     '''
+#     Get the i'th extension of σ_AB
+#     --------------------------------------------------------------
+#     Given a σ_AB_1...B_k ∈ 𝓗_A ⊗ 𝓗_B^(⊗k) calculate 
+#     σ_AB_1 = tr_B1..B_(i-1)B_(i+1)...B_k(σ_AB_1...B_k)
+
+#     This is done by noting that 
+#     tr_B1..B_(i-1)B_(i+1)...B_k(σ_AB_1...B_k) 
+#     = sum_(\vec{j}) (<j_0| ⊗ ... ⊗ <j_(i-1)| ⊗ id ⊗ <j_(i+1)| ⊗ ...⊗ <j_k|) σ_AB_1...B_k (|j_0> ⊗ ... ⊗ |j_(i-1)> ⊗ id ⊗ |j_(i+1)> ⊗ ...⊗ |j_k>)
+#                     {----------------------------M_j---------------------------}              {----------------------------M_j^T-------------------------}
+    
+#     = sum_(\vec{j}) M_j · σ_AB ·M_j^T 
+#     '''
+
+    #Construct the M matrix defined in the docstring
+    # M = np.zeros((dim_A*dim_B), dim_A*dim_B**k)
+    # for i in dim_B:
+
+    # σ_AB_block = np.asarray(σ_AB.value).reshape(dim_A*dim_B**k).transpose()
+    # indecies = [i*2 for i in range(k-1)]
+    # indecies.append([i*2 for i in range(k+1)])
 def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k):
     '''
     Check if σ_AB is an extension, by checking constraints
@@ -22,7 +93,7 @@ def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k):
         print("tr(σ_AB) = 1    :    FALSE")
     
     #Checking that each extension is equal to ρ
-    σ_i_constraints=[np.allclose(picos.partial_trace(σ_AB,i,(dim_A,dim_B,dim_B)).value,ρ.value) for i in range(1,3)]
+    σ_i_constraints=[np.allclose(get_σ_AB_i(σ_AB, dim_A, dim_B, i, k).value,ρ.value) for i in range(1,k+1)]
     if  all(σ_i_constraints):
         print("(σ_AB)_i = ρ   :    TRUE")
     else:
@@ -41,7 +112,7 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0):
     '''
     Checks if the state ρ is k-extendible.
     --------------------------------------
-    Given an input state ρ in 𝓗_A ⊗ 𝓗_B. Try to find an extension σ_AB_1..B_k ∈ 𝓗_A ⊗ 𝓗_B^(⊗k), such that (σ_AB)_i=ρ
+    Given an input state ρ ∈ 𝓗_A ⊗ 𝓗_B. Try to find an extension σ_AB_1..B_k ∈ 𝓗_A ⊗ 𝓗_B^(⊗k), such that (σ_AB)_i=ρ
 
     :param ρ: The state we want to check
     :param dim_A: Dimensions of system A
@@ -60,9 +131,7 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0):
     #Add constrains
     problem.add_constraint(σ_AB>>0) 
     problem.add_constraint(picos.trace(σ_AB)==1)
-    
-    #TODO: add constraint for k>2
-    problem.add_list_of_constraints([picos.partial_trace(σ_AB, i, (dim_A, dim_B, dim_B))==ρ for i in range(1, k+1)],'i','1...'+str(k))
+    problem.add_list_of_constraints([get_σ_AB_i(σ_AB, dim_A, dim_B, i, k)==ρ for i in range(1, k+1)],'i','1...'+str(k))
 
     print("\nChecking for %d extendibility..."%(k))
 
@@ -71,7 +140,6 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0):
         try:
             print(problem)  
             problem.solve(verbose=verbose, solver='mosek')
-            get_σ_AB_i(σ_AB,1, dim_A, dim_B)
             check_exstendibility(ρ, σ_AB, dim_A, dim_B, k)   #Run a solution check if the user wants
         except UnicodeEncodeError:
             print("!!!Can't print the output due to your terminal not supporting unicode encoding!!!\nThis can be solved by setting verbose=0, or running the function using ipython instead.")
@@ -101,4 +169,4 @@ if __name__=='__main__':
     #                     ])
     # ρ = 1.0/4*np.eye(4,4)
     # ρ = cvx.matrix([[0.2,2,3],[4,0.6,6],[1,0.2,1]])
-    extendibility(ρ,2,4, verbose=1)
+    extendibility(ρ,2,4, verbose=1, k=6)
