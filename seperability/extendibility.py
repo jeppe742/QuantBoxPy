@@ -1,12 +1,6 @@
 import picos
 import cvxopt as cvx
 
-def get_σ_AB_i(σ_AB, i, dim_A, dim_B):
-
-    if σ_AB.size==(dim_A,dim_B):
-        return σ_AB
-    
-    get_σ_AB_i(picos.partial_trace(σ_AB,))
 
 def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k):
     '''
@@ -67,6 +61,7 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0):
     problem.add_constraint(σ_AB>>0) 
     problem.add_constraint(picos.trace(σ_AB)==1)
     
+    #TODO: add constraint for k>2
     problem.add_list_of_constraints([picos.partial_trace(σ_AB, i, (dim_A, dim_B, dim_B))==ρ for i in range(1, k+1)],'i','1...'+str(k))
 
     print("\nChecking for %d extendibility..."%(k))
