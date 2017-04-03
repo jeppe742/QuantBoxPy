@@ -42,7 +42,7 @@ def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k, extend_system=1):
 
     else:
         dim = [dim_A for _ in range(k)]
-        dim.extend(dim_B) # Dimensions of our system
+        dim.append(dim_B) # Dimensions of our system
     
     #Calculate first trace
         if index==0:
@@ -53,8 +53,8 @@ def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k, extend_system=1):
 
         #Loop over the rest of the traces
         for j in range(k-2):
-            dim = [dim_A]
-            dim.extend([dim_B for i in range(k-1-j)])
+            dim = [dim_A for _ in range(k-1-j)]
+            dim.append(dim_B)
             if index==0:
                 σ_AB_i = picos.partial_trace(σ_AB_i, index+1, dim )
             else:
@@ -66,7 +66,7 @@ def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k, extend_system=1):
     
     return σ_AB_i
  
-def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k):
+def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k,extend_system=1):
     '''
     Check if σ_AB is an extension, by checking constraints
 
@@ -86,7 +86,7 @@ def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k):
         print("tr(σ_AB) = 1    :    FALSE")
     
     #Checking that each extension is equal to ρ
-    σ_i_constraints=[np.allclose(get_σ_AB_i(σ_AB, dim_A, dim_B, i, k).value,ρ.value) for i in range(1,k+1)]
+    σ_i_constraints=[np.allclose(get_σ_AB_i(σ_AB, dim_A, dim_B, i, k, extend_system=extend_system).value,ρ.value) for i in range(1,k+1)]
     if  all(σ_i_constraints):
         print("(σ_AB)_i = ρ   :    TRUE")
     else:
@@ -126,7 +126,7 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
     #Add constrains
     problem.add_constraint(σ_AB>>0) 
     problem.add_constraint(picos.trace(σ_AB)==1)
-    problem.add_list_of_constraints([get_σ_AB_i(σ_AB, dim_A, dim_B, i, k)==ρ for i in range(1, k+1)],'i','1...'+str(k))
+    problem.add_list_of_constraints([get_σ_AB_i(σ_AB, dim_A, dim_B, i, k, extend_system=extend_system)==ρ for i in range(1, k+1)],'i','1...'+str(k))
 
     print("\nChecking for %d extendibility..."%(k))
 
@@ -135,7 +135,7 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
         try:
             print(problem)  
             problem.solve(verbose=verbose, solver='mosek')
-            check_exstendibility(ρ, σ_AB, dim_A, dim_B, k)   #Run a solution check if the user wants
+            check_exstendibility(ρ, σ_AB, dim_A, dim_B, k, extend_system=extend_system)   #Run a solution check if the user wants
         except UnicodeEncodeError:
             print("!!!Can't print the output due to your terminal not supporting unicode encoding!!!\nThis can be solved by setting verbose=0, or running the function using ipython instead.")
     else:
@@ -144,17 +144,17 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
 
 if __name__=='__main__':
     import numpy as np
-    # a=0.5   
-    # ρ = (1/(7*a+1))*cvx.matrix([
-    #                 [a,0,0,0,0,a,0,0],
-    #                 [0,a,0,0,0,0,a,0],
-    #                 [0,0,a,0,0,0,0,a],
-    #                 [0,0,0,a,0,0,0,0],
-    #                 [0,0,0,0,0.5*(1+a),0,0,0.5*np.sqrt(1-a**2)],
-    #                 [a,0,0,0,0,a,0,0],
-    #                 [0,a,0,0,0,0,a,0],
-    #                 [0,0,a,0,0.5*np.sqrt(1-a**2),0,0,0.5*(1+a)]
-    #                 ])
+    a=0.5   
+    ρ = (1/(7*a+1))*cvx.matrix([
+                    [a,0,0,0,0,a,0,0],
+                    [0,a,0,0,0,0,a,0],
+                    [0,0,a,0,0,0,0,a],
+                    [0,0,0,a,0,0,0,0],
+                    [0,0,0,0,0.5*(1+a),0,0,0.5*np.sqrt(1-a**2)],
+                    [a,0,0,0,0,a,0,0],
+                    [0,a,0,0,0,0,a,0],
+                    [0,0,a,0,0.5*np.sqrt(1-a**2),0,0,0.5*(1+a)]
+                    ])
     # p=0.4
     # ρ = 1.0/4.0*cvx.matrix([
     #                     [1-p,0,0,0],
@@ -166,9 +166,9 @@ if __name__=='__main__':
     # ρ = cvx.matrix([[0.2,2,3],[4,0.6,6],[1,0.2,1]])
 
     #Maximally entangled state
-    ρ = 1/2*cvx.matrix([[1,0,0,1],
-                        [0,0,0,0],
-                        [0,0,0,0],
-                        [1,0,0,1]])
+    # ρ = 1/2*cvx.matrix([[1,0,0,1],
+    #                     [0,0,0,0],
+    #                     [0,0,0,0],
+    #                     [1,0,0,1]])
 
-    extendibility(ρ,2,2, verbose=1, k=3, extend_system=0)
+    extendibility(ρ,2,4, verbose=1, k=10, extend_system=0)
