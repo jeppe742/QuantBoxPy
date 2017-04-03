@@ -60,10 +60,7 @@ def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k, extend_system=1):
             else:
                 σ_AB_i = picos.partial_trace(σ_AB_i, index-1, dim )
                 index -= 1
-    
 
-
-    
     return σ_AB_i
  
 def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k,extend_system=1):
@@ -88,7 +85,7 @@ def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k,extend_system=1):
     #Checking that each extension is equal to ρ
     σ_i_constraints=[np.allclose(get_σ_AB_i(σ_AB, dim_A, dim_B, i, k, extend_system=extend_system).value,ρ.value) for i in range(1,k+1)]
     if  all(σ_i_constraints):
-        print("(σ_AB)_i = ρ   :    TRUE")
+        print("(σ_AB)_i = ρ    :    TRUE")
     else:
         for i, σ_i in enumerate(σ_i_constraints):  #Loop over the extensions which does not equal ρ
             if not σ_i:
@@ -162,6 +159,7 @@ if __name__=='__main__':
     #                     [0,-2*p,p+1,0],
     #                     [0,0,0,1-p]
     #                     ])
+
     # ρ = 1.0/4*np.eye(4,4)
     # ρ = cvx.matrix([[0.2,2,3],[4,0.6,6],[1,0.2,1]])
 
@@ -171,4 +169,4 @@ if __name__=='__main__':
     #                     [0,0,0,0],
     #                     [1,0,0,1]])
 
-    extendibility(ρ,2,4, verbose=1, k=10, extend_system=0)
+    extendibility(ρ,2,4, verbose=1, k=2, extend_system=0)
