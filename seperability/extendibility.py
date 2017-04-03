@@ -2,7 +2,7 @@ import picos
 import cvxopt as cvx
 import numpy as np
 
-def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k):
+def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k, extend_system=1):
     '''
     Get the i'th extension of σ_AB
     --------------------------------------------------------------
@@ -15,28 +15,54 @@ def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k):
     :param i: The system for which we want the reduced density matrix
     :param k: number of extensions we have
     '''
-    #Create a list of the dimensions of our system
-    dim = [dim_A]
-    dim.extend([dim_B for i in range(k)]) # Dimensions of our system
 
     index = i #This is used to keep track of which system not to trace out
 
-    #Calculate first trace
-    if index==1:
-        σ_AB_i = picos.partial_trace(σ_AB, index+1, dim )
-    else:
-        σ_AB_i = picos.partial_trace(σ_AB, index-1, dim )
-        index -= 1
-
-    #Loop over the rest of the traces
-    for j in range(k-2):
+    #Create a list of the dimensions of our system
+    if extend_system==1:
         dim = [dim_A]
-        dim.extend([dim_B for i in range(k-1-j)])
+        dim.extend([dim_B for _ in range(k)]) # Dimensions of our system
+
+        #Calculate first trace
         if index==1:
-            σ_AB_i = picos.partial_trace(σ_AB_i, index+1, dim )
+            σ_AB_i = picos.partial_trace(σ_AB, index+1, dim )
         else:
-            σ_AB_i = picos.partial_trace(σ_AB_i, index-1, dim )
+            σ_AB_i = picos.partial_trace(σ_AB, index-1, dim )
             index -= 1
+
+        #Loop over the rest of the traces
+        for j in range(k-2):
+            dim = [dim_A]
+            dim.extend([dim_B for i in range(k-1-j)])
+            if index==1:
+                σ_AB_i = picos.partial_trace(σ_AB_i, index+1, dim )
+            else:
+                σ_AB_i = picos.partial_trace(σ_AB_i, index-1, dim )
+                index -= 1
+
+    else:
+        dim = [dim_A for _ in range(k)]
+        dim.extend(dim_B) # Dimensions of our system
+    
+    #Calculate first trace
+        if index==0:
+            σ_AB_i = picos.partial_trace(σ_AB, index+1, dim )
+        else:
+            σ_AB_i = picos.partial_trace(σ_AB, index-1, dim )
+            index -= 1
+
+        #Loop over the rest of the traces
+        for j in range(k-2):
+            dim = [dim_A]
+            dim.extend([dim_B for i in range(k-1-j)])
+            if index==0:
+                σ_AB_i = picos.partial_trace(σ_AB_i, index+1, dim )
+            else:
+                σ_AB_i = picos.partial_trace(σ_AB_i, index-1, dim )
+                index -= 1
+    
+
+
     
     return σ_AB_i
  
@@ -75,7 +101,7 @@ def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k):
         print("eigenvals are :")
         print(np.linalg.eigvals(np.asarray(σ_AB.value)))
 
-def extendibility(ρ, dim_A, dim_B, k=2, verbose=0):
+def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
     '''
     Checks if the state ρ is k-extendible.
     --------------------------------------
@@ -90,8 +116,10 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0):
     #Define variables, and create problem
     ρ = picos.new_param('ρ',ρ)
     problem = picos.Problem()
-    σ_AB = problem.add_variable('σ_AB', (dim_A*dim_B**k, dim_A*dim_B**k),'hermitian')
-
+    if extend_system==1:
+        σ_AB = problem.add_variable('σ_AB', (dim_A*dim_B**k, dim_A*dim_B**k),'hermitian')
+    else:
+        σ_AB = problem.add_variable('σ_AB', (dim_A**k*dim_B, dim_A**k*dim_B),'hermitian')
     #Set objective to a feasibility problem. The second argument is ignored by picos, so set some random scalar function.
     problem.set_objective('find', picos.trace(σ_AB))
 
@@ -116,17 +144,17 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0):
 
 if __name__=='__main__':
     import numpy as np
-    a=0.5   
-    ρ = (1/(7*a+1))*cvx.matrix([
-                    [a,0,0,0,0,a,0,0],
-                    [0,a,0,0,0,0,a,0],
-                    [0,0,a,0,0,0,0,a],
-                    [0,0,0,a,0,0,0,0],
-                    [0,0,0,0,0.5*(1+a),0,0,0.5*np.sqrt(1-a**2)],
-                    [a,0,0,0,0,a,0,0],
-                    [0,a,0,0,0,0,a,0],
-                    [0,0,a,0,0.5*np.sqrt(1-a**2),0,0,0.5*(1+a)]
-                    ])
+    # a=0.5   
+    # ρ = (1/(7*a+1))*cvx.matrix([
+    #                 [a,0,0,0,0,a,0,0],
+    #                 [0,a,0,0,0,0,a,0],
+    #                 [0,0,a,0,0,0,0,a],
+    #                 [0,0,0,a,0,0,0,0],
+    #                 [0,0,0,0,0.5*(1+a),0,0,0.5*np.sqrt(1-a**2)],
+    #                 [a,0,0,0,0,a,0,0],
+    #                 [0,a,0,0,0,0,a,0],
+    #                 [0,0,a,0,0.5*np.sqrt(1-a**2),0,0,0.5*(1+a)]
+    #                 ])
     # p=0.4
     # ρ = 1.0/4.0*cvx.matrix([
     #                     [1-p,0,0,0],
@@ -136,4 +164,11 @@ if __name__=='__main__':
     #                     ])
     # ρ = 1.0/4*np.eye(4,4)
     # ρ = cvx.matrix([[0.2,2,3],[4,0.6,6],[1,0.2,1]])
-    extendibility(ρ,2,4, verbose=1, k=6)
+
+    #Maximally entangled state
+    ρ = 1/2*cvx.matrix([[1,0,0,1],
+                        [0,0,0,0],
+                        [0,0,0,0],
+                        [1,0,0,1]])
+
+    extendibility(ρ,2,2, verbose=1, k=3, extend_system=0)
