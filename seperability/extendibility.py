@@ -71,6 +71,7 @@ def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k,extend_system=1):
     :param σ_AB: solution to the proposed extension σ_AB. σ_AB should be 𝓗_A ⊗ 𝓗_B^(⊗k)
     :param dim_A: dimensions of system ρ_A
     :param dim_B: dimsenions of system ρ_B
+    :param extend_system: Which system that is extended. Specify either 0 for system A or 1 for system B.
     '''
     print("----------------------------------------------------")
     print("Checking that the solution fulfills the constraints:")
@@ -108,6 +109,7 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
     :param dim_A: Dimensions of system A
     :param dim_B: Dimensions of system B
     :param k: The extendibility order
+    :param extend_system: Which system to create the copies from. Specify either 0 for system A or 1 for system B.
     '''
 
     #Define variables, and create problem
