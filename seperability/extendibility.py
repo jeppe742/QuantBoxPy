@@ -86,11 +86,11 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
         σ_AB = problem.add_variable('σ_AB', (binom(dim_A+k-1,k)*dim_B, binom(dim_A+k-1,k)*dim_B),'hermitian')
     #Set objective to a feasibility problem. The second argument is ignored by picos, so set some random scalar function.
     problem.set_objective('find', 0)
-    a=bose_trace(σ_AB, dim_A, dim_B, k, extend_system=extend_system)
+    # a=bose_trace(σ_AB, dim_A, dim_B, k, extend_system=extend_system)
     #Add constrains
     problem.add_constraint(σ_AB>>0) 
     problem.add_constraint(picos.trace(σ_AB)==1)
-    problem.add_list_of_constraints([get_σ_AB_i(σ_AB, dim_A, dim_B, i, k, extend_system=extend_system)==ρ for i in range(1, k+1)],'i','1...'+str(k))
+    problem.add_constraint(bose_trace(σ_AB, dim_A, dim_B, k, extend_system=extend_system)==ρ )
 
     print("\nChecking for %d extendibility..."%(k))
 
