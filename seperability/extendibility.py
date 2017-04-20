@@ -1,69 +1,33 @@
 import picos
 import cvxopt as cvx
 import numpy as np
+from scipy.special import binom
+from bose_trace import bose_trace_channel
 
-def get_σ_AB_i( σ_AB, dim_A, dim_B, i, k, extend_system=1):
-    '''
-    Get the i'th extension of σ_AB
-    --------------------------------------------------------------
-    Given a σ_AB_1...B_k ∈ 𝓗_A ⊗ 𝓗_B^(⊗k) calculate 
-    σ_AB_i = tr_B1..B_(i-1)B_(i+1)...B_k(σ_AB_1...B_k)
-
-    :param σ_AB: input state including all extensions
-    :param dim_A: dimensions of system σ_A
-    :param dim_B: dimsenions of system σ_B
-    :param i: The system for which we want the reduced density matrix
-    :param k: number of extensions we have
-    '''
-
-    index = i #This is used to keep track of which system not to trace out
-
-    #Create a list of the dimensions of our system
-    if extend_system==1:
-        dim = [dim_A]
-        dim.extend([dim_B for _ in range(k)]) # Dimensions of our system
-
-        #Calculate first trace
-        if index==1:
-            σ_AB_i = picos.partial_trace(σ_AB, index+1, dim )
-        else:
-            σ_AB_i = picos.partial_trace(σ_AB, index-1, dim )
-            index -= 1
-
-        #Loop over the rest of the traces
-        for j in range(k-2):
-            dim = [dim_A]
-            dim.extend([dim_B for i in range(k-1-j)])
-            if index==1:
-                σ_AB_i = picos.partial_trace(σ_AB_i, index+1, dim )
-            else:
-                σ_AB_i = picos.partial_trace(σ_AB_i, index-1, dim )
-                index -= 1
-
-    else:
-        dim = [dim_A for _ in range(k)]
-        dim.append(dim_B) # Dimensions of our system
+def bose_trace(σ_AB, dim_A, dim_B, k, extend_system=1):
     
-    #Calculate first trace
-        if index==0:
-            σ_AB_i = picos.partial_trace(σ_AB, index+1, dim )
+    if extend_system == 1:
+        C_id = np.eye(dim_A).reshape(dim_A**2,1)* np.eye(dim_A).reshape(1,dim_A**2)
+        C_bose = bose_trace_channel(dim_B, k)
+        C_T = np.tensordot(C_bose, C_id, axes=0)
+    else:
+        C_id = np.eye(dim_B).reshape(dim_B**2,1)* np.eye(dim_B).reshape(1,dim_B**2)
+        C_id = C_id.reshape(dim_B, dim_B, dim_B, dim_B).transpose(1,3,0,2).reshape(dim_B**2,dim_B**2)
+        C_bose = bose_trace_channel(dim_A, k)
+        C_T = np.tensordot(C_id, C_bose, axes=0)
+        C_T = C_T.transpose(0,2,1,3).reshape(dim_A**2*dim_B**2, dim_A**2*binom(dim_A+k-1,k)**2)
+        
+        newfacs = {}
+        for x in σ_AB.factors:
+            newfacs[x] = C_T * σ_AB.factors[x]
+        if σ_AB.constant:
+            cons = C_T * σ_AB.constant
         else:
-            σ_AB_i = picos.partial_trace(σ_AB, index-1, dim )
-            index -= 1
-
-        #Loop over the rest of the traces
-        for j in range(k-2):
-            dim = [dim_A for _ in range(k-1-j)]
-            dim.append(dim_B)
-            if index==0:
-                σ_AB_i = picos.partial_trace(σ_AB_i, index+1, dim )
-            else:
-                σ_AB_i = picos.partial_trace(σ_AB_i, index-1, dim )
-                index -= 1
-
-    return σ_AB_i
- 
+            cons = None
+        return picos.AffinExp(newfacs, cons, (dim_A**2*dim_B**2, dim_A**2*int(binom(dim_A+k-1,k))**2), 'Tr_B^N-1'  + '(' + σ_AB.string + ')')
+    
 def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k,extend_system=1):
+    
     '''
     Check if σ_AB is an extension, by checking constraints
 
@@ -115,13 +79,14 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
     #Define variables, and create problem
     ρ = picos.new_param('ρ',ρ)
     problem = picos.Problem()
-    if extend_system==1:
-        σ_AB = problem.add_variable('σ_AB', (dim_A*dim_B**k, dim_A*dim_B**k),'hermitian')
-    else:
-        σ_AB = problem.add_variable('σ_AB', (dim_A**k*dim_B, dim_A**k*dim_B),'hermitian')
-    #Set objective to a feasibility problem. The second argument is ignored by picos, so set some random scalar function.
-    problem.set_objective('find', picos.trace(σ_AB))
 
+    if extend_system==1:
+        σ_AB = problem.add_variable('σ_AB', (dim_A*binom(dim_B+k-1,k), dim_A*binom(dim_B+k-1,k)),'hermitian')
+    else:
+        σ_AB = problem.add_variable('σ_AB', (binom(dim_A+k-1,k)*dim_B, binom(dim_A+k-1,k)*dim_B),'hermitian')
+    #Set objective to a feasibility problem. The second argument is ignored by picos, so set some random scalar function.
+    problem.set_objective('find', 0)
+    a=bose_trace(σ_AB, dim_A, dim_B, k, extend_system=extend_system)
     #Add constrains
     problem.add_constraint(σ_AB>>0) 
     problem.add_constraint(picos.trace(σ_AB)==1)
@@ -142,18 +107,19 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
 
 
 if __name__=='__main__':
+
     import numpy as np
-    a=0.5   
-    ρ = (1/(7*a+1))*cvx.matrix([
-                    [a,0,0,0,0,a,0,0],
-                    [0,a,0,0,0,0,a,0],
-                    [0,0,a,0,0,0,0,a],
-                    [0,0,0,a,0,0,0,0],
-                    [0,0,0,0,0.5*(1+a),0,0,0.5*np.sqrt(1-a**2)],
-                    [a,0,0,0,0,a,0,0],
-                    [0,a,0,0,0,0,a,0],
-                    [0,0,a,0,0.5*np.sqrt(1-a**2),0,0,0.5*(1+a)]
-                    ])
+    # a=0.5   
+    # ρ = (1/(7*a+1))*cvx.matrix([
+    #                 [a,0,0,0,0,a,0,0],
+    #                 [0,a,0,0,0,0,a,0],
+    #                 [0,0,a,0,0,0,0,a],
+    #                 [0,0,0,a,0,0,0,0],
+    #                 [0,0,0,0,0.5*(1+a),0,0,0.5*np.sqrt(1-a**2)],
+    #                 [a,0,0,0,0,a,0,0],
+    #                 [0,a,0,0,0,0,a,0],
+    #                 [0,0,a,0,0.5*np.sqrt(1-a**2),0,0,0.5*(1+a)]
+    #                 ])
     # p=0.4
     # ρ = 1.0/4.0*cvx.matrix([
     #                     [1-p,0,0,0],
@@ -165,10 +131,10 @@ if __name__=='__main__':
     # ρ = 1.0/4*np.eye(4,4)
     # ρ = cvx.matrix([[0.2,2,3],[4,0.6,6],[1,0.2,1]])
 
-    #Maximally entangled state
-    # ρ = 1/2*cvx.matrix([[1,0,0,1],
-    #                     [0,0,0,0],
-    #                     [0,0,0,0],
-    #                     [1,0,0,1]])
+    # Maximally entangled state
+    ρ = 1/2*cvx.matrix([[1,0,0,1],
+                        [0,0,0,0],
+                        [0,0,0,0],
+                        [1,0,0,1]])
 
-    extendibility(ρ,2,4, verbose=1, k=2, extend_system=0)
+    extendibility(ρ,2,2, verbose=1, k=2, extend_system=0)
