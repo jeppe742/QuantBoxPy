@@ -5,26 +5,44 @@ from scipy.special import binom
 from bose_trace import bose_trace_channel
 
 def bose_trace(σ_AB, dim_A, dim_B, k, extend_system=1):
+    """
+     Given a state in 𝓗_A ⊗ Sym^k(𝓗_B), trace out k-1 of the systems in the symmetric 
     
+    tr_B^k-1: 𝓛(𝓗_A ⊗ Sym^k(𝓗_B)) -> 𝓛(𝓗_A ⊗ 𝓗_B)
+
+    :param σ_AB: the state to perform the map on
+    :param dim_A: dimensions of  𝓗_A
+    :param dim_B: dimensions of  𝓗_B
+    :param k: how many extensions we have
+    :param extend_system: Which system has been extended. 𝓗_A is extended if 0, and 𝓗_B if 1
+    
+    """
     if extend_system == 1:
-        C_id = np.eye(dim_A).reshape(dim_A**2,1)* np.eye(dim_A).reshape(1,dim_A**2)
+        #Create both the idendity and bose-trace channel
+        C_id = np.eye(dim_A**2, dim_A**2)
         C_bose = bose_trace_channel(dim_B, k)
-        C_T = np.tensordot(C_bose, C_id, axes=0)
+        C_T = np.tensordot(C_bose, C_id, axes=0) #The joint channel is defined as the tensorproduct 
+        C_T = C_T.transpose(0,2,1,3).reshape(dim_A**2*dim_B**2, int(binom(dim_B+k-1,k))**2*dim_A**2) #Correct axes and reshape into final shape
     else:
-        C_id = np.eye(dim_B).reshape(dim_B**2,1)* np.eye(dim_B).reshape(1,dim_B**2)
-        C_id = C_id.reshape(dim_B, dim_B, dim_B, dim_B).transpose(1,3,0,2).reshape(dim_B**2,dim_B**2)
+        C_id = np.eye(dim_B**2, dim_B**2)
         C_bose = bose_trace_channel(dim_A, k)
         C_T = np.tensordot(C_id, C_bose, axes=0)
-        C_T = C_T.transpose(0,2,1,3).reshape(dim_A**2*dim_B**2, dim_A**2*binom(dim_A+k-1,k)**2)
-        
-        newfacs = {}
-        for x in σ_AB.factors:
-            newfacs[x] = C_T * σ_AB.factors[x]
-        if σ_AB.constant:
-            cons = C_T * σ_AB.constant
-        else:
-            cons = None
-        return picos.AffinExp(newfacs, cons, (dim_A**2*dim_B**2, dim_A**2*int(binom(dim_A+k-1,k))**2), 'Tr_B^N-1'  + '(' + σ_AB.string + ')')
+        C_T = C_T.transpose(0,2,1,3).reshape(dim_A**2*dim_B**2, int(binom(dim_A+k-1,k))**2*dim_B**2)
+
+    #TODO: implement bose-trace using sparse matrix    
+    C_T = cvx.matrix(C_T, tc='z') #Since picos uses cvx, cast the matrix to a cvx matrix
+    
+    #This is where the magic happens. Picos stores matricies as x = X*factors + constant, where X is x flattend. 
+    #To apply a channel, simply multiply the factor and channel together: T(x) = X*C_T*factors + constant
+    newfacs = {}
+    for x in σ_AB.factors:
+        newfacs[x] = C_T * σ_AB.factors[x]
+    if σ_AB.constant: #Not sure if needed. Copied from picos partial trace, just in case
+        cons = C_T * σ_AB.constant
+    else:
+        cons = None
+
+    return picos.AffinExp(newfacs, cons, (dim_A*dim_B, dim_A*dim_B), 'Tr_B^N-1'  + '(' + σ_AB.string + ')')
     
 def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k,extend_system=1):
     
@@ -43,23 +61,23 @@ def check_exstendibility(ρ, σ_AB, dim_A, dim_B, k,extend_system=1):
 
     #Checking the partial trace, with a tolerence of 1e-7
     if all((np.real(picos.trace(σ_AB).value)-1)<1e-7):
-        print("tr(σ_AB) = 1    :    TRUE")
+        print("tr(σ_AB) = 1          :    TRUE")
     else:
-        print("tr(σ_AB) = 1    :    FALSE")
+        print("tr(σ_AB) = 1          :    FALSE")
     
     #Checking that each extension is equal to ρ
-    σ_i_constraints=[np.allclose(get_σ_AB_i(σ_AB, dim_A, dim_B, i, k, extend_system=extend_system).value,ρ.value) for i in range(1,k+1)]
-    if  all(σ_i_constraints):
-        print("(σ_AB)_i = ρ    :    TRUE")
+    σ_i_constraints=np.allclose(bose_trace(σ_AB, dim_A, dim_B, k, extend_system=extend_system).value, ρ.value)
+    if  σ_i_constraints:
+        print("tr_B^N-1(σ_AB) = ρ   :    TRUE")
     else:
-        for i, σ_i in enumerate(σ_i_constraints):  #Loop over the extensions which does not equal ρ
-            if not σ_i:
-                print("(σ_AB)_%d = ρ   :    FALSE"%(i))
+        # for i, σ_i in enumerate(σ_i_constraints):  #Loop over the extensions which does not equal ρ
+        #     if not σ_i:
+        print("tr_B^N-1(σ_AB) = ρ   :    FALSE")
 
     if all((np.linalg.eigvals(np.asarray(σ_AB.value))+1e-7)>0): #Check if the matrix is positive with a tolerence of 1e-7
-        print("σ_AB > 0        :    TRUE")
+        print("σ_AB > 0              :    TRUE")
     else:
-        print("σ_AB > 0        :    FALSE")
+        print("σ_AB > 0              :    FALSE")
         print("eigenvals are :")
         print(np.linalg.eigvals(np.asarray(σ_AB.value)))
 
@@ -85,8 +103,8 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
     else:
         σ_AB = problem.add_variable('σ_AB', (binom(dim_A+k-1,k)*dim_B, binom(dim_A+k-1,k)*dim_B),'hermitian')
     #Set objective to a feasibility problem. The second argument is ignored by picos, so set some random scalar function.
-    problem.set_objective('find', 0)
-    # a=bose_trace(σ_AB, dim_A, dim_B, k, extend_system=extend_system)
+    problem.set_objective('find', picos.trace(σ_AB))
+
     #Add constrains
     problem.add_constraint(σ_AB>>0) 
     problem.add_constraint(picos.trace(σ_AB)==1)
@@ -109,17 +127,17 @@ def extendibility(ρ, dim_A, dim_B, k=2, verbose=0, extend_system=1):
 if __name__=='__main__':
 
     import numpy as np
-    # a=0.5   
-    # ρ = (1/(7*a+1))*cvx.matrix([
-    #                 [a,0,0,0,0,a,0,0],
-    #                 [0,a,0,0,0,0,a,0],
-    #                 [0,0,a,0,0,0,0,a],
-    #                 [0,0,0,a,0,0,0,0],
-    #                 [0,0,0,0,0.5*(1+a),0,0,0.5*np.sqrt(1-a**2)],
-    #                 [a,0,0,0,0,a,0,0],
-    #                 [0,a,0,0,0,0,a,0],
-    #                 [0,0,a,0,0.5*np.sqrt(1-a**2),0,0,0.5*(1+a)]
-    #                 ])
+    a=0.5   
+    ρ = (1/(7*a+1))*cvx.matrix([
+                    [a,0,0,0,0,a,0,0],
+                    [0,a,0,0,0,0,a,0],
+                    [0,0,a,0,0,0,0,a],
+                    [0,0,0,a,0,0,0,0],
+                    [0,0,0,0,0.5*(1+a),0,0,0.5*np.sqrt(1-a**2)],
+                    [a,0,0,0,0,a,0,0],
+                    [0,a,0,0,0,0,a,0],
+                    [0,0,a,0,0.5*np.sqrt(1-a**2),0,0,0.5*(1+a)]
+                    ])
     # p=0.4
     # ρ = 1.0/4.0*cvx.matrix([
     #                     [1-p,0,0,0],
@@ -132,9 +150,9 @@ if __name__=='__main__':
     # ρ = cvx.matrix([[0.2,2,3],[4,0.6,6],[1,0.2,1]])
 
     # Maximally entangled state
-    ρ = 1/2*cvx.matrix([[1,0,0,1],
-                        [0,0,0,0],
-                        [0,0,0,0],
-                        [1,0,0,1]])
+    # ρ = 1/2*cvx.matrix([[1,0,0,1],
+    #                     [0,0,0,0],
+    #                     [0,0,0,0],
+    #                     [1,0,0,1]])
 
-    extendibility(ρ,2,2, verbose=1, k=2, extend_system=0)
+    extendibility(ρ,2,4, verbose=1, k=1, extend_system=1)
