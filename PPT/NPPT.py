@@ -1,5 +1,5 @@
-import numpy as np
-from numba import autojit
+﻿import numpy as np
+#from numba import autojit
 np.set_printoptions(precision=2)
 
 # @autojit
