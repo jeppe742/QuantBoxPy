@@ -14,7 +14,7 @@ def C(m, n):
     [[0 0.707]
      [0   0  ]]
     """
-    k=len(m)
+    k=sum(m)
     d = m.shape[0]
     C=np.zeros((d,d))
     for i in range(d):
@@ -25,7 +25,7 @@ def C(m, n):
             #Reduce the occupancy number by one
             mm[i] = mm[i]-1
             nn[j] = nn[j]-1
-            C[i,j] = np.sqrt(m[i]*n[j])/k *np.dot(mm.T,nn)
+            C[i, j] = np.sqrt(m[i]*n[j])/k * int(all(mm.T==nn)) #The last term here, just correspods to the kronecker delta, between nn and mm
     return C
 
 
@@ -44,7 +44,7 @@ def bose_trace_channel(d, k):
     C_T = np.zeros((d_sym, d_sym, d, d)) #Initialize the matrix
     for i, m in enumerate(np.asarray(sym_vectors(d, k))):
         for j, n in enumerate(np.asarray(sym_vectors(d, k))):
-            mm = ket(i, d_sym)
+            mm = ket(i, d_sym) # conver into the computational basis
             nn = bra(j, d_sym)
             C_T += np.tensordot(mm*nn, C(m, n), axes=0)
     return C_T.transpose(2, 3, 0, 1).reshape(d**2, d_sym**2)
